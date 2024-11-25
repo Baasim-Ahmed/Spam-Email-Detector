@@ -1,4 +1,4 @@
-Here's a sample `README.md` file for your project with emojis and code block highlighting for better readability:
+
 
 ---
 
