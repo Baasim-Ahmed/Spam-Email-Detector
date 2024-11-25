@@ -8,11 +8,15 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import matplotlib.pyplot as plt
+import seaborn as sns
+import logging
+
+# Set up logging for debugging
+logging.basicConfig(level=logging.INFO)
 
 # Download NLTK data
 nltk.download('punkt')
 nltk.download('stopwords')
-nltk.download('punkt_tab')
 
 # Load dataset (replace 'emails.csv' with the path to your dataset)
 # Dataset must have columns 'text' (email content) and 'label' (spam/ham)
@@ -31,6 +35,9 @@ data['tokens'] = data['text'].apply(preprocess_text)
 
 # Function to build a co-occurrence graph
 def build_cooccurrence_graph(tokens):
+    if not tokens or len(tokens) < 2:  # Handle empty or small token lists
+        return nx.Graph()  # Return an empty graph
+    
     graph = nx.Graph()
     for i in range(len(tokens)):
         for j in range(i + 1, len(tokens)):
@@ -43,10 +50,16 @@ data['graph'] = data['tokens'].apply(build_cooccurrence_graph)
 
 # Function to compute centrality metrics
 def compute_centrality_metrics(graph):
+    if graph.number_of_nodes() < 2:  # Handle small graphs
+        return {
+            'avg_centrality': 0,
+            'max_centrality': 0,
+        }
+
     centrality = nx.degree_centrality(graph)
     return {
-        'avg_centrality': sum(centrality.values()) / len(centrality) if centrality else 0,
-        'max_centrality': max(centrality.values()) if centrality else 0,
+        'avg_centrality': sum(centrality.values()) / len(centrality),
+        'max_centrality': max(centrality.values()),
     }
 
 # Apply centrality computation
@@ -56,10 +69,17 @@ data['max_centrality'] = data['centrality'].apply(lambda x: x['max_centrality'])
 
 # Function to compute advanced graph metrics
 def compute_advanced_metrics(graph):
+    if graph.number_of_nodes() < 2:  # Handle small or empty graphs
+        return {
+            'density': 0,
+            'num_components': 0,
+            'clustering_coefficient': 0,
+        }
+    
     return {
         'density': nx.density(graph),
         'num_components': nx.number_connected_components(graph),
-        'clustering_coefficient': nx.average_clustering(graph) if len(graph) > 1 else 0,
+        'clustering_coefficient': nx.average_clustering(graph),
     }
 
 # Apply advanced metrics computation
@@ -68,9 +88,19 @@ data['density'] = data['advanced_metrics'].apply(lambda x: x['density'])
 data['num_components'] = data['advanced_metrics'].apply(lambda x: x['num_components'])
 data['clustering_coefficient'] = data['advanced_metrics'].apply(lambda x: x['clustering_coefficient'])
 
+# Debugging step: Check graph structures
+for idx, graph in enumerate(data['graph']):
+    logging.info(f"Processing graph at index {idx}")
+    logging.info(f"Nodes: {list(graph.nodes())}")
+    logging.info(f"Edges: {list(graph.edges())}")
+    logging.info(f"Graph Type: {type(graph)}")
 
 # Function to visualize a sample graph
 def visualize_graph(graph, title):
+    if graph.number_of_nodes() == 0:  # Handle empty graphs gracefully
+        print("Empty graph. No visualization available.")
+        return
+    
     plt.figure(figsize=(8, 6))
     nx.draw(graph, with_labels=True, node_color='lightblue', edge_color='gray', node_size=500, font_size=10)
     plt.title(title)
@@ -80,7 +110,7 @@ def visualize_graph(graph, title):
 visualize_graph(data['graph'][0], "Sample Email Graph")
 
 # Extract features (centrality metrics) and labels
-features = data[['avg_centrality', 'max_centrality', 'density', 'num_components', 'clustering_coefficient']] # type: ignore
+features = data[['avg_centrality', 'max_centrality', 'density', 'num_components', 'clustering_coefficient']]
 labels = data['label']
 
 # Split data into training and testing sets
@@ -100,19 +130,6 @@ print("Centrality Metrics for Spam and Ham Emails:")
 print(data.groupby('label')[['avg_centrality', 'max_centrality', 'density', 'clustering_coefficient']].mean())
 
 # Visualize centrality distribution
-import seaborn as sns
-
-sns.boxplot(x=data['label'], y=data['avg_centrality'])
-plt.title("Average Centrality Distribution (0=Ham, 1=Spam)")
-plt.show()
-
-# Display metrics for insights
-print("Centrality Metrics for Spam and Ham Emails:")
-print(data.groupby('label')[['avg_centrality', 'max_centrality', 'density', 'clustering_coefficient']].mean())
-
-# Visualize centrality distribution
-import seaborn as sns
-
 sns.boxplot(x=data['label'], y=data['avg_centrality'])
 plt.title("Average Centrality Distribution (0=Ham, 1=Spam)")
 plt.show()
